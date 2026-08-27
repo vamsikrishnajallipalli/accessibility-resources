@@ -127,18 +127,24 @@ PY
 }
 
 publish_with_git() {
-  local tmp
+  local tmp repo_dir
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
-  GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --branch "$BRANCH" "https://github.com/$REPO.git" "$tmp/repo" || return 1
-  mkdir -p "$tmp/repo/$REMOTE_DIR"
-  cp "$OUT/narration-ishita.mp3" "$OUT/dialogue-ishita.mp3" "$OUT/status.json" "$tmp/repo/$REMOTE_DIR/"
-  cd "$tmp/repo"
-  git config user.name "Mavrik Labs Mac Preview" >/dev/null
-  git config user.email "noreply@mavrik.local" >/dev/null
-  git add "$REMOTE_DIR"
-  git commit -m "Publish Kumari neural Tamil preview" >/dev/null || true
-  GIT_TERMINAL_PROMPT=0 git push --quiet origin "$BRANCH" || return 1
+  repo_dir="$tmp/repo"
+  if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --branch "$BRANCH" "https://github.com/$REPO.git" "$repo_dir"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  mkdir -p "$repo_dir/$REMOTE_DIR"
+  cp "$OUT/narration-ishita.mp3" "$OUT/dialogue-ishita.mp3" "$OUT/status.json" "$repo_dir/$REMOTE_DIR/"
+  git -C "$repo_dir" config user.name "Mavrik Labs Mac Preview" >/dev/null
+  git -C "$repo_dir" config user.email "noreply@mavrik.local" >/dev/null
+  git -C "$repo_dir" add "$REMOTE_DIR"
+  git -C "$repo_dir" commit -m "Publish Kumari neural Tamil preview" >/dev/null || true
+  if ! GIT_TERMINAL_PROMPT=0 git -C "$repo_dir" push --quiet origin "$BRANCH"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$tmp"
 }
 
 PUBLISHED=0
