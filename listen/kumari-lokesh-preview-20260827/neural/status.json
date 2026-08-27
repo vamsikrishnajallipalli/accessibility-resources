@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-08-27T21:00:29.050275+00:00",
+  "provider": "microsoft-edge-online-tts",
+  "cost": "free/no-api-key",
+  "language_code": "ta-IN",
+  "voices": {
+    "pallavi": "ta-IN-PallaviNeural",
+    "valluvar": "ta-IN-ValluvarNeural"
+  },
+  "files": {
+    "pallavi-narration.mp3": {
+      "bytes": 249264,
+      "sha256": "0df283f6b4f610cb78bdc1fc08d92b674f9ffea0af8a9528194da2ca36db8e7f"
+    },
+    "pallavi-dialogue.mp3": {
+      "bytes": 283104,
+      "sha256": "675b912b7e9955dfd4b1d1684c1b8ea45fd7c83a3845aa64c3ce0acfed48706b"
+    },
+    "valluvar-narration.mp3": {
+      "bytes": 244080,
+      "sha256": "0deb86ea4eeb1e402cf8441952bce81102431e69750930e56d79bcbcc42d104d"
+    },
+    "valluvar-dialogue.mp3": {
+      "bytes": 276336,
+      "sha256": "e8b945252140553be5be918cfdf5b7dc036f2d8dbb041db2b431537fbaca1f1f"
+    }
+  }
+}
