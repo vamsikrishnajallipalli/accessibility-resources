@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="vamsikrishnajallipalli/accessibility-resources"
+BRANCH="master"
+REMOTE_DIR="listen/kumari-lokesh-preview-20260827/neural"
+OUT="$HOME/Downloads/Kumari-Neural-Tamil-Preview"
+PAGE="https://raw.githack.com/vamsikrishnajallipalli/accessibility-resources/master/k.html"
+mkdir -p "$OUT"
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "This launcher is intended for the founder Mac."
+  exit 2
+fi
+
+KEY="${SARVAM_API_KEY:-}"
+if [[ -z "$KEY" ]]; then
+  KEY="$(security find-generic-password -a "$USER" -s SARVAM_API_KEY -w 2>/dev/null || true)"
+fi
+if [[ -z "$KEY" ]]; then
+  echo "Sarvam key was not found in macOS Keychain service SARVAM_API_KEY for account $USER."
+  echo "Nothing was charged and no audio was generated."
+  exit 3
+fi
+export SARVAM_API_KEY="$KEY"
+unset KEY
+
+echo "Kumari natural Tamil production audition"
+echo "Model: Sarvam Bulbul v3 | Voice: Ishita | Tamil: ta-IN"
+echo "Generating two short source-grounded samples..."
+
+python3 - "$OUT" <<'PY'
+from __future__ import annotations
+import base64, hashlib, json, os, pathlib, sys, urllib.error, urllib.request
+from datetime import datetime, timezone
+
+out = pathlib.Path(sys.argv[1])
+api_key = os.environ["SARVAM_API_KEY"]
+endpoint = "https://api.sarvam.ai/text-to-speech"
+
+samples = {
+    "narration-ishita.mp3": """தன்னால் அது முடியுமா என யோசித்துப் பார்த்தாள் இருவாஞ்சி. மிகவும் கடினமான, செய்து முடிக்கவே முடியாத உச்சம் என்று உணர்ந்திருந்தாள். ஆனால், வேறு வழியே இல்லை. செம்பனின் ஒற்றைப் பார்வைக்கு முன் உயிர் துச்சமென முடிவெடுத்திருந்தாள். தகதகவென மிளிர்ந்து, கடுகளவில் திரண்டிருக்கும் ஒளிப் புள்ளியை ஆசன வாயின் மேல்புறத்தில் உணர்ந்து மனதை இறுக்கிப் பிணைந்தாள். மனமும் ஒளியும் ஒருசேர தண்டுவடத்தில் தீற்றல்களாக ஒளி குமிழ்ந்து உருண்டு மேல் நோக்கி நகர்ந்தது. முதுவெளித் தாய் கொற்றவையை முன்நிறுத்தி, வழி வேண்டும் என்று அவள் வேண்டி நின்றாள்.""",
+    "dialogue-ishita.mp3": """இருவாஞ்சி... ம்... என் யாழிக்கு நரம்பு வேண்டும். யாழிக்கு யாளியின் நரம்பு வேண்டுமா? ம். நீயே கொன்று வா. நீ கொண்டு வா. எது வேண்டும்? சிம்மம். நீ ஏன் கவலைப்படுற வாஞ்சி? சிம்மத்தைக் கொல்லக் காட்டில் அனைத்துரிமையும் உண்டு. ஏய்... அது தெரியாதா? நரம்பக் கேட்கிறாயே! உன் எண்ணத்தச் சொல்லு. என் செம்பனுக்காகவும், என் காதலுக்காகவும், என் கனவுக்காகவும் சிம்மத்தைத் தேடிப் போக இருக்கேன். சிம்மம் உயிரோடு நம்மோடு இருக்க வேண்டும். என் மேல நம்பிக்கையில்லையா செம்பா?""",
+}
+
+manifest = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "provider": "sarvam",
+    "model": "bulbul:v3",
+    "speaker": "ishita",
+    "language_code": "ta-IN",
+    "pace": 0.92,
+    "temperature": 0.76,
+    "speech_sample_rate": 48000,
+    "output_audio_codec": "mp3",
+    "samples": {},
+}
+
+for filename, text in samples.items():
+    payload = {
+        "text": text,
+        "language_code": "ta-IN",
+        "speaker": "ishita",
+        "model": "bulbul:v3",
+        "pace": 0.92,
+        "temperature": 0.76,
+        "speech_sample_rate": 48000,
+        "output_audio_codec": "mp3",
+    }
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"api-subscription-key": api_key, "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"Sarvam API HTTP {exc.code}: {detail}")
+    audio_list = body.get("audios") or []
+    if not audio_list:
+        raise SystemExit(f"Sarvam response for {filename} contained no audio")
+    audio = base64.b64decode("".join(audio_list))
+    if len(audio) < 1024:
+        raise SystemExit(f"Generated audio for {filename} is unexpectedly small")
+    path = out / filename
+    path.write_bytes(audio)
+    manifest["samples"][filename] = {
+        "chars": len(text),
+        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "audio_sha256": hashlib.sha256(audio).hexdigest(),
+        "bytes": len(audio),
+        "request_id": body.get("request_id"),
+    }
+    print(f"generated: {path.name} ({len(audio):,} bytes)")
+
+(out / "status.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+PY
+
+unset SARVAM_API_KEY
+
+echo "Playing the real neural narration sample now..."
+afplay "$OUT/narration-ishita.mp3" || true
+
+publish_with_gh() {
+  command -v gh >/dev/null 2>&1 || return 1
+  gh auth status -h github.com >/dev/null 2>&1 || return 1
+  python3 - "$OUT" "$REPO" "$BRANCH" "$REMOTE_DIR" <<'PY'
+import base64, json, pathlib, subprocess, sys, tempfile
+out=pathlib.Path(sys.argv[1]); repo=sys.argv[2]; branch=sys.argv[3]; remote=sys.argv[4]
+for name in ["narration-ishita.mp3","dialogue-ishita.mp3","status.json"]:
+    p=out/name
+    target=f"{remote}/{name}"
+    get=subprocess.run(["gh","api",f"repos/{repo}/contents/{target}?ref={branch}","--jq",".sha"],text=True,capture_output=True)
+    payload={"message":f"Publish Kumari neural Tamil preview: {name}","content":base64.b64encode(p.read_bytes()).decode("ascii"),"branch":branch}
+    if get.returncode==0 and get.stdout.strip(): payload["sha"]=get.stdout.strip()
+    with tempfile.NamedTemporaryFile("w",encoding="utf-8",delete=False) as f:
+        json.dump(payload,f); tmp=f.name
+    put=subprocess.run(["gh","api","--method","PUT",f"repos/{repo}/contents/{target}","--input",tmp],text=True,capture_output=True)
+    pathlib.Path(tmp).unlink(missing_ok=True)
+    if put.returncode!=0:
+        raise SystemExit(put.stderr or f"GitHub upload failed for {name}")
+    print(f"published: {target}")
+PY
+}
+
+publish_with_git() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --branch "$BRANCH" "https://github.com/$REPO.git" "$tmp/repo" || return 1
+  mkdir -p "$tmp/repo/$REMOTE_DIR"
+  cp "$OUT/narration-ishita.mp3" "$OUT/dialogue-ishita.mp3" "$OUT/status.json" "$tmp/repo/$REMOTE_DIR/"
+  cd "$tmp/repo"
+  git config user.name "Mavrik Labs Mac Preview" >/dev/null
+  git config user.email "noreply@mavrik.local" >/dev/null
+  git add "$REMOTE_DIR"
+  git commit -m "Publish Kumari neural Tamil preview" >/dev/null || true
+  GIT_TERMINAL_PROMPT=0 git push --quiet origin "$BRANCH" || return 1
+}
+
+PUBLISHED=0
+if publish_with_gh; then
+  PUBLISHED=1
+elif publish_with_git; then
+  PUBLISHED=1
+fi
+
+if [[ "$PUBLISHED" == "1" ]]; then
+  echo
+  echo "Neural preview published successfully."
+  echo "$PAGE"
+  open "$PAGE" || true
+else
+  echo
+  echo "Neural audio was generated and is ready locally at:"
+  echo "$OUT"
+  echo "Automatic GitHub publish could not authenticate on this Mac. No audio was lost."
+fi
+
+echo
+echo "Done. Full-book synthesis has NOT started; this audition is the quality gate before the larger render."
